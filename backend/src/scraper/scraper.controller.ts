@@ -1,4 +1,5 @@
-import { Controller, Post } from '@nestjs/common';
+import { Controller, Post, ForbiddenException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ScraperService } from './scraper.service';
 import { DollarService } from './dollar.service';
 import { ListingsService } from '../listings/listings.service';
@@ -6,18 +7,27 @@ import { ListingsService } from '../listings/listings.service';
 @Controller('scraper')
 export class ScraperController {
   constructor(
+    private readonly config: ConfigService,
     private readonly scraperService: ScraperService,
     private readonly dollarService: DollarService,
     private readonly listingsService: ListingsService,
   ) {}
 
+  private guardLocal() {
+    if (this.config.get('NODE_ENV') === 'production') {
+      throw new ForbiddenException('Scraping is only available locally');
+    }
+  }
+
   @Post('run')
   async runScrape() {
+    this.guardLocal();
     return this.scraperService.scrape();
   }
 
   @Post('convert-prices')
   async convertPrices() {
+    this.guardLocal();
     const rate = await this.dollarService.getBlueRate();
     const all = await this.listingsService.findAll({});
     let converted = 0;
