@@ -18,7 +18,7 @@ export class ListingsController {
       order,
       neighborhood,
       minScore: minScore ? parseFloat(minScore) : undefined,
-      isActive: isActive === 'false' ? false : true,
+      isActive: isActive !== undefined ? (isActive === 'false' ? false : true) : true,
     });
   }
 

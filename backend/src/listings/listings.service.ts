@@ -22,8 +22,11 @@ export class ListingsService {
     minScore?: number;
     isActive?: boolean;
   }) {
-    const active = params.isActive ?? true;
-    const qb = this.repo.createQueryBuilder('l').where('l.isActive = :active', { active });
+    const qb = this.repo.createQueryBuilder('l');
+
+    if (params.isActive !== undefined) {
+      qb.where('l.isActive = :active', { active: params.isActive });
+    }
 
     if (params.neighborhood) {
       qb.andWhere('l.neighborhood ILIKE :n', { n: `%${params.neighborhood}%` });
