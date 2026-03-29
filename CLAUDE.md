@@ -16,7 +16,7 @@
 
 ## Deployment
 
-- **Frontend**: Vercel (free tier) - reads `NEXT_PUBLIC_API_URL` env var
+- **Frontend**: Vercel (free tier) - set `NEXT_PUBLIC_API_URL` env var to Railway backend URL in production (or configure Vercel rewrites to proxy `/api/*` to Railway)
 - **Backend**: Railway - backend-only Docker image, no Playwright
 - **Database**: Neon (free tier) with `DB_SSL=true`
 - Scraping and ranking are LOCAL ONLY - guarded by `NODE_ENV=production` returning 403
@@ -29,7 +29,7 @@
 - New listings (< 24h) get a green "New" badge in the UI
 - After scraping, new listings are auto-sent to ranking
 - Ranking only processes unranked listings (never re-ranks existing)
-- Frontend API base URL is `''` (empty string = same origin) in production, `http://localhost:3001` for local dev
+- Frontend API base URL: Set `NEXT_PUBLIC_API_URL` to Railway backend URL in production, `http://localhost:3001` for local dev
 
 ## Local Development
 
@@ -37,10 +37,10 @@
 # Start PostgreSQL
 docker compose up -d
 
-# Backend (port 3001)
+# Terminal 1: Backend (port 3001)
 cd backend && npm run dev
 
-# Frontend (port 3000)
+# Terminal 2: Frontend (port 3000)
 cd frontend && NEXT_PUBLIC_API_URL=http://localhost:3001 npm run dev
 
 # Scrape + auto-rank
