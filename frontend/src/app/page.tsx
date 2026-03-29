@@ -309,6 +309,7 @@ export default function Home() {
   const [sortBy, setSortBy] = useState<SortKey>('scoreOverall');
   const [sortOrder, setSortOrder] = useState<'DESC' | 'ASC'>('DESC');
   const [filterNeighborhood, setFilterNeighborhood] = useState('');
+  const [tab, setTab] = useState<'active' | 'closed'>('active');
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -316,6 +317,7 @@ export default function Home() {
     setLoading(true);
     const params = new URLSearchParams({ sortBy, order: sortOrder });
     if (filterNeighborhood) params.set('neighborhood', filterNeighborhood);
+    if (tab === 'closed') params.set('isActive', 'false');
     const res = await fetch(`${API}/listings?${params}`);
     const data = await res.json();
     setListings(data);
@@ -330,7 +332,7 @@ export default function Home() {
   useEffect(() => {
     fetchListings();
     fetchNeighborhoods();
-  }, [sortBy, sortOrder, filterNeighborhood]);
+  }, [sortBy, sortOrder, filterNeighborhood, tab]);
 
   const sortOptions: { key: SortKey; label: string }[] = [
     { key: 'scoreOverall', label: 'Overall Score' },
@@ -347,13 +349,37 @@ export default function Home() {
   return (
     <main className="max-w-6xl mx-auto px-4 py-8">
       {/* Header */}
-      <div className="mb-8">
+      <div className="mb-6">
         <h1 className="text-3xl font-bold tracking-tight">
           Apartment Hunter
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {listings.length} listings from ZonaProp
+          {listings.length} {tab === 'closed' ? 'closed' : ''} listings from ZonaProp
         </p>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 mb-6 border-b border-border">
+        <button
+          onClick={() => setTab('active')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            tab === 'active'
+              ? 'border-primary text-foreground'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Active
+        </button>
+        <button
+          onClick={() => setTab('closed')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            tab === 'closed'
+              ? 'border-primary text-foreground'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Closed
+        </button>
       </div>
 
       {/* Filters */}
@@ -415,11 +441,12 @@ export default function Home() {
         <div className="space-y-3">
           {listings.map((l, idx) => {
             const overall = Number(l.scoreOverall) || 0;
-            const isNew = Date.now() - new Date(l.firstSeen).getTime() < 24 * 60 * 60 * 1000;
+            const isNew = tab === 'active' && Date.now() - new Date(l.firstSeen).getTime() < 24 * 60 * 60 * 1000;
+            const isClosed = tab === 'closed';
             return (
               <Card
                 key={l.id}
-                className={`overflow-hidden transition-colors hover:border-muted-foreground/25 cursor-pointer ${isNew ? 'border-emerald-500/40' : ''}`}
+                className={`overflow-hidden transition-colors hover:border-muted-foreground/25 cursor-pointer ${isNew ? 'border-emerald-500/40' : ''} ${isClosed ? 'opacity-80' : ''}`}
                 onClick={() =>
                   setExpanded(expanded === l.id ? null : l.id)
                 }
@@ -452,11 +479,19 @@ export default function Home() {
                                 New
                               </span>
                             )}
+                            {isClosed && (
+                              <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider bg-red-500/80 text-white px-1.5 py-0.5 rounded">
+                                Closed
+                              </span>
+                            )}
                             {l.title || l.address || 'Apartment'}
                           </h2>
                           <p className="text-xs text-muted-foreground mt-0.5">
                             {l.neighborhood}
                             {l.address ? ` · ${l.address}` : ''}
+                            {isClosed && l.lastSeen && (
+                              <span> · Closed {new Date(l.lastSeen).toLocaleDateString()}</span>
+                            )}
                           </p>
                         </div>
                         <div className="text-right shrink-0">

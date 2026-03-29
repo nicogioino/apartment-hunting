@@ -11,12 +11,14 @@ export class ListingsController {
     @Query('order') order?: 'ASC' | 'DESC',
     @Query('neighborhood') neighborhood?: string,
     @Query('minScore') minScore?: string,
+    @Query('isActive') isActive?: string,
   ) {
     return this.listingsService.findAll({
       sortBy,
       order,
       neighborhood,
       minScore: minScore ? parseFloat(minScore) : undefined,
+      isActive: isActive !== undefined ? (isActive === 'false' ? false : true) : true,
     });
   }
 

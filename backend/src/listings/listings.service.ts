@@ -20,8 +20,13 @@ export class ListingsService {
     order?: 'ASC' | 'DESC';
     neighborhood?: string;
     minScore?: number;
+    isActive?: boolean;
   }) {
-    const qb = this.repo.createQueryBuilder('l').where('l.isActive = true');
+    const qb = this.repo.createQueryBuilder('l');
+
+    if (params.isActive !== undefined) {
+      qb.where('l.isActive = :active', { active: params.isActive });
+    }
 
     if (params.neighborhood) {
       qb.andWhere('l.neighborhood ILIKE :n', { n: `%${params.neighborhood}%` });
@@ -39,6 +44,7 @@ export class ListingsService {
       'priceUsd',
       'totalAreaM2',
       'firstSeen',
+      'lastSeen',
     ];
     const col = allowed.includes(sortCol) ? sortCol : 'scoreOverall';
     qb.orderBy(`l.${col}`, params.order || 'DESC', 'NULLS LAST');
