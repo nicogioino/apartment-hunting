@@ -3,9 +3,8 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 
-const API = 'http://localhost:3001';
+const API = process.env.NEXT_PUBLIC_API_URL || '';
 
 interface Listing {
   id: string;
@@ -42,14 +41,48 @@ type SortKey =
   | 'priceUsd'
   | 'totalAreaM2';
 
-function ScorePill({ label, score }: { label: string; score: number | null }) {
+function scoreColor(n: number) {
+  if (n >= 8) return 'text-emerald-400';
+  if (n >= 6) return 'text-amber-400';
+  return 'text-red-400';
+}
+
+function scoreBg(n: number) {
+  if (n >= 8) return 'from-emerald-500/20 to-emerald-500/5';
+  if (n >= 6) return 'from-amber-500/20 to-amber-500/5';
+  return 'from-red-500/20 to-red-500/5';
+}
+
+function ScoreRing({ score }: { score: number | null }) {
   if (score === null) return null;
   const n = Number(score);
-  const variant = n >= 7 ? 'default' : n >= 5 ? 'secondary' : 'destructive';
+  const pct = (n / 10) * 100;
+  const r = 18;
+  const circ = 2 * Math.PI * r;
+  const offset = circ - (pct / 100) * circ;
+
   return (
-    <Badge variant={variant} className="text-[11px] font-mono">
-      {label} {n.toFixed(1)}
-    </Badge>
+    <div className="relative w-14 h-14 shrink-0">
+      <svg className="w-14 h-14 -rotate-90" viewBox="0 0 44 44">
+        <circle cx="22" cy="22" r={r} fill="none" stroke="currentColor" strokeWidth="3" className="text-muted/50" />
+        <circle cx="22" cy="22" r={r} fill="none" strokeWidth="3" strokeLinecap="round"
+          strokeDasharray={circ} strokeDashoffset={offset}
+          className={scoreColor(n)} />
+      </svg>
+      <span className={`absolute inset-0 flex items-center justify-center text-sm font-bold ${scoreColor(n)}`}>
+        {n.toFixed(1)}
+      </span>
+    </div>
+  );
+}
+
+function MiniScore({ label, score }: { label: string; score: number | null }) {
+  if (score === null) return null;
+  const n = Number(score);
+  return (
+    <span className={`text-xs tabular-nums ${scoreColor(n)}`}>
+      {label} <span className="font-semibold">{n.toFixed(1)}</span>
+    </span>
   );
 }
 
@@ -104,7 +137,6 @@ function ListingDetail({ listing }: { listing: Listing }) {
       .catch(() => setLoadingHistory(false));
   }, [listing.id]);
 
-  // Build full timeline: history entries + current price
   const timeline = [
     ...history.map((h) => ({
       date: new Date(h.recordedAt),
@@ -120,24 +152,37 @@ function ListingDetail({ listing }: { listing: Listing }) {
     },
   ];
 
+  const overall = Number(listing.scoreOverall) || 0;
+
   return (
     <div
       className="border-t border-border px-4 py-4 space-y-4"
       onClick={(e) => e.stopPropagation()}
     >
+      {/* AI Analysis card */}
+      {listing.rankingNotes && (
+        <div className={`rounded-lg bg-gradient-to-r ${scoreBg(overall)} border border-border p-4`}>
+          <div className="flex items-start gap-4">
+            <ScoreRing score={listing.scoreOverall} />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">AI Analysis</span>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+              <p className="text-sm leading-relaxed">{listing.rankingNotes}</p>
+              <div className="flex gap-4 mt-3">
+                <MiniScore label="Value" score={listing.scoreValue} />
+                <MiniScore label="Location" score={listing.scoreLocation} />
+                <MiniScore label="Aesthetics" score={listing.scoreAesthetics} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Two-column layout: info + price history */}
       <div className="grid grid-cols-1 md:grid-cols-[1fr_280px] gap-4">
-        {/* Left: description, features, images */}
         <div className="space-y-3">
-          {listing.rankingNotes && (
-            <div className="rounded-md bg-muted/50 px-3 py-2">
-              <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">
-                AI Analysis
-              </p>
-              <p className="text-sm">{listing.rankingNotes}</p>
-            </div>
-          )}
-
           {listing.description && (
             <p className="text-sm text-muted-foreground leading-relaxed">
               {listing.description}
@@ -177,7 +222,7 @@ function ListingDetail({ listing }: { listing: Listing }) {
           </a>
         </div>
 
-        {/* Right: price history */}
+        {/* Price history */}
         <div className="rounded-md border border-border bg-muted/30 p-3">
           <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
             Price History
@@ -213,7 +258,6 @@ function ListingDetail({ listing }: { listing: Listing }) {
 
                 return (
                   <div key={i} className="flex items-center gap-2 text-xs">
-                    {/* Timeline dot + line */}
                     <div className="flex flex-col items-center w-3 self-stretch">
                       <div
                         className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${
@@ -226,7 +270,6 @@ function ListingDetail({ listing }: { listing: Listing }) {
                         <div className="w-px flex-1 bg-border mt-0.5" />
                       )}
                     </div>
-                    {/* Content */}
                     <div className="flex-1 flex items-baseline justify-between gap-2 pb-2">
                       <span className="text-muted-foreground tabular-nums">
                         {entry.date.toLocaleDateString()}
@@ -267,8 +310,6 @@ export default function Home() {
   const [sortOrder, setSortOrder] = useState<'DESC' | 'ASC'>('DESC');
   const [filterNeighborhood, setFilterNeighborhood] = useState('');
   const [loading, setLoading] = useState(true);
-  const [scraping, setScraping] = useState(false);
-  const [ranking, setRanking] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const fetchListings = async () => {
@@ -291,21 +332,6 @@ export default function Home() {
     fetchNeighborhoods();
   }, [sortBy, sortOrder, filterNeighborhood]);
 
-  const runScrape = async () => {
-    setScraping(true);
-    await fetch(`${API}/scraper/run`, { method: 'POST' });
-    setScraping(false);
-    fetchListings();
-    fetchNeighborhoods();
-  };
-
-  const runRank = async () => {
-    setRanking(true);
-    await fetch(`${API}/ranker/run`, { method: 'POST' });
-    setRanking(false);
-    fetchListings();
-  };
-
   const sortOptions: { key: SortKey; label: string }[] = [
     { key: 'scoreOverall', label: 'Overall Score' },
     { key: 'scoreValue', label: 'Value (m²/$)' },
@@ -321,23 +347,13 @@ export default function Home() {
   return (
     <main className="max-w-6xl mx-auto px-4 py-8">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            Apartment Hunter
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {listings.length} listings from ZonaProp
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button onClick={runScrape} disabled={scraping} variant="outline">
-            {scraping ? 'Scraping…' : 'Scrape'}
-          </Button>
-          <Button onClick={runRank} disabled={ranking}>
-            {ranking ? 'Ranking…' : 'Rank'}
-          </Button>
-        </div>
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold tracking-tight">
+          Apartment Hunter
+        </h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          {listings.length} listings from ZonaProp
+        </p>
       </div>
 
       {/* Filters */}
@@ -393,104 +409,116 @@ export default function Home() {
         </div>
       ) : listings.length === 0 ? (
         <div className="text-center py-20 text-muted-foreground">
-          No listings yet. Click &ldquo;Scrape&rdquo; to fetch apartments.
+          No listings found.
         </div>
       ) : (
         <div className="space-y-3">
-          {listings.map((l, idx) => (
-            <Card
-              key={l.id}
-              className="overflow-hidden transition-colors hover:border-muted-foreground/25 cursor-pointer"
-              onClick={() =>
-                setExpanded(expanded === l.id ? null : l.id)
-              }
-            >
-              <CardContent className="p-0">
-                <div className="flex">
-                  {/* Rank */}
-                  <div className="flex items-center justify-center w-12 shrink-0 bg-muted/50 text-muted-foreground font-mono text-sm">
-                    {idx + 1}
-                  </div>
-
-                  {/* Thumbnail */}
-                  {l.imageUrls?.[0] && (
-                    <div className="w-44 h-[120px] shrink-0 bg-muted">
-                      <img
-                        src={l.imageUrls[0]}
-                        alt=""
-                        className="w-full h-full object-cover"
-                      />
+          {listings.map((l, idx) => {
+            const overall = Number(l.scoreOverall) || 0;
+            const isNew = Date.now() - new Date(l.firstSeen).getTime() < 24 * 60 * 60 * 1000;
+            return (
+              <Card
+                key={l.id}
+                className={`overflow-hidden transition-colors hover:border-muted-foreground/25 cursor-pointer ${isNew ? 'border-emerald-500/40' : ''}`}
+                onClick={() =>
+                  setExpanded(expanded === l.id ? null : l.id)
+                }
+              >
+                <CardContent className="p-0">
+                  <div className="flex">
+                    {/* Rank */}
+                    <div className="flex items-center justify-center w-12 shrink-0 bg-muted/50 text-muted-foreground font-mono text-sm">
+                      {idx + 1}
                     </div>
-                  )}
 
-                  {/* Content */}
-                  <div className="flex-1 p-3 min-w-0">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <h2 className="font-semibold text-sm truncate leading-tight">
-                          {l.title || l.address || 'Apartment'}
-                        </h2>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {l.neighborhood}
-                          {l.address ? ` · ${l.address}` : ''}
-                        </p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="font-bold text-base tabular-nums">
-                          {l.priceUsd
-                            ? `USD ${formatUsd(Number(l.priceUsd))}`
-                            : l.priceArs
-                              ? `$ ${Number(l.priceArs).toLocaleString()}`
-                              : '—'}
-                        </p>
-                        <PriceChange
-                          priceUsd={l.priceUsd}
-                          priceChangeUsd={l.priceChangeUsd}
+                    {/* Thumbnail */}
+                    {l.imageUrls?.[0] && (
+                      <div className="w-44 h-[120px] shrink-0 bg-muted">
+                        <img
+                          src={l.imageUrls[0]}
+                          alt=""
+                          className="w-full h-full object-cover"
                         />
-                        {l.expensesDisplay && (
-                          <p className="text-[11px] text-muted-foreground">
-                            {l.expensesDisplay}
+                      </div>
+                    )}
+
+                    {/* Content */}
+                    <div className="flex-1 p-3 min-w-0">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h2 className="font-semibold text-sm truncate leading-tight flex items-center gap-1.5">
+                            {isNew && (
+                              <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider bg-emerald-500 text-white px-1.5 py-0.5 rounded">
+                                New
+                              </span>
+                            )}
+                            {l.title || l.address || 'Apartment'}
+                          </h2>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {l.neighborhood}
+                            {l.address ? ` · ${l.address}` : ''}
                           </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="font-bold text-base tabular-nums">
+                            {l.priceUsd
+                              ? `USD ${formatUsd(Number(l.priceUsd))}`
+                              : l.priceArs
+                                ? `$ ${Number(l.priceArs).toLocaleString()}`
+                                : '—'}
+                          </p>
+                          <PriceChange
+                            priceUsd={l.priceUsd}
+                            priceChangeUsd={l.priceChangeUsd}
+                          />
+                          {l.expensesDisplay && (
+                            <p className="text-[11px] text-muted-foreground">
+                              {l.expensesDisplay}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Stats */}
+                      <div className="flex gap-3 mt-2 text-xs text-muted-foreground tabular-nums">
+                        {l.totalAreaM2 && <span>{l.totalAreaM2} m² tot</span>}
+                        {l.coveredAreaM2 && (
+                          <span>{l.coveredAreaM2} m² cub</span>
+                        )}
+                        {l.rooms && <span>{l.rooms} amb</span>}
+                        {l.bathrooms && <span>{l.bathrooms} baño(s)</span>}
+                        {l.priceUsd && l.totalAreaM2 && (
+                          <span className="text-primary font-medium">
+                            USD{' '}
+                            {Math.round(
+                              Number(l.priceUsd) / Number(l.totalAreaM2),
+                            )}
+                            /m²
+                          </span>
                         )}
                       </div>
-                    </div>
 
-                    {/* Stats */}
-                    <div className="flex gap-3 mt-2 text-xs text-muted-foreground tabular-nums">
-                      {l.totalAreaM2 && <span>{l.totalAreaM2} m² tot</span>}
-                      {l.coveredAreaM2 && (
-                        <span>{l.coveredAreaM2} m² cub</span>
+                      {/* Score badges */}
+                      {l.scoreOverall && (
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className={`text-lg font-bold tabular-nums ${scoreColor(overall)}`}>
+                            {overall.toFixed(1)}
+                          </span>
+                          <div className="flex gap-1">
+                            <MiniScore label="Val" score={l.scoreValue} />
+                            <MiniScore label="Loc" score={l.scoreLocation} />
+                            <MiniScore label="Aes" score={l.scoreAesthetics} />
+                          </div>
+                        </div>
                       )}
-                      {l.rooms && <span>{l.rooms} amb</span>}
-                      {l.bathrooms && <span>{l.bathrooms} baño(s)</span>}
-                      {l.priceUsd && l.totalAreaM2 && (
-                        <span className="text-primary font-medium">
-                          USD{' '}
-                          {Math.round(
-                            Number(l.priceUsd) / Number(l.totalAreaM2),
-                          )}
-                          /m²
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Scores */}
-                    <div className="flex gap-1.5 mt-2">
-                      <ScorePill label="Overall" score={l.scoreOverall} />
-                      <ScorePill label="Value" score={l.scoreValue} />
-                      <ScorePill label="Location" score={l.scoreLocation} />
-                      <ScorePill
-                        label="Aesthetics"
-                        score={l.scoreAesthetics}
-                      />
                     </div>
                   </div>
-                </div>
 
-                {expanded === l.id && <ListingDetail listing={l} />}
-              </CardContent>
-            </Card>
-          ))}
+                  {expanded === l.id && <ListingDetail listing={l} />}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </main>

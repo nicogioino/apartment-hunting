@@ -36,17 +36,23 @@ export class RankerService {
         `Ranking batch ${Math.floor(i / batchSize) + 1} (${batch.length} listings)`,
       );
 
-      const scores = await this.rankBatch(batch);
+      try {
+        const scores = await this.rankBatch(batch);
 
-      for (const score of scores) {
-        await this.listingsService.updateScores(score.id, {
-          scoreValue: score.scoreValue,
-          scoreLocation: score.scoreLocation,
-          scoreAesthetics: score.scoreAesthetics,
-          scoreOverall: score.scoreOverall,
-          rankingNotes: score.notes,
-        });
-        ranked++;
+        for (const score of scores) {
+          await this.listingsService.updateScores(score.id, {
+            scoreValue: score.scoreValue,
+            scoreLocation: score.scoreLocation,
+            scoreAesthetics: score.scoreAesthetics,
+            scoreOverall: score.scoreOverall,
+            rankingNotes: score.notes,
+          });
+          ranked++;
+        }
+      } catch (error) {
+        this.logger.warn(
+          `Batch ${Math.floor(i / batchSize) + 1} failed, skipping: ${error.message}`,
+        );
       }
     }
 
@@ -121,19 +127,27 @@ ${JSON.stringify(listingSummaries, null, 2)}`;
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (!jsonMatch) throw new Error('No JSON array found in response');
 
-      const scores: ListingScore[] = JSON.parse(jsonMatch[0]).map(
-        (s: any) => ({
-          id: s.id,
-          scoreValue: Math.min(10, Math.max(1, Number(s.scoreValue))),
-          scoreLocation: Math.min(10, Math.max(1, Number(s.scoreLocation))),
-          scoreAesthetics: Math.min(
-            10,
-            Math.max(1, Number(s.scoreAesthetics)),
-          ),
-          scoreOverall: Math.min(10, Math.max(1, Number(s.scoreOverall))),
+      let parsed: any[];
+      try {
+        parsed = JSON.parse(jsonMatch[0]);
+      } catch {
+        // Try to fix common JSON issues: missing braces, trailing commas
+        const fixed = jsonMatch[0]
+          .replace(/,\s*]/g, ']')
+          .replace(/,\s*}/g, '}');
+        parsed = JSON.parse(fixed);
+      }
+
+      const scores: ListingScore[] = parsed
+        .filter((s: any) => s && s.id)
+        .map((s: any) => ({
+          id: String(s.id),
+          scoreValue: Math.min(10, Math.max(1, Number(s.scoreValue) || 5)),
+          scoreLocation: Math.min(10, Math.max(1, Number(s.scoreLocation) || 5)),
+          scoreAesthetics: Math.min(10, Math.max(1, Number(s.scoreAesthetics) || 5)),
+          scoreOverall: Math.min(10, Math.max(1, Number(s.scoreOverall) || 5)),
           notes: s.notes || '',
-        }),
-      );
+        }));
 
       return scores;
     } catch (error) {

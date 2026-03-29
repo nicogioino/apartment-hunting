@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { chromium, type Page } from 'playwright';
 import { ListingsService } from '../listings/listings.service';
+import { RankerService } from '../ranker/ranker.service';
 import { DollarService } from './dollar.service';
 import { ScrapeRun } from './scrape-run.entity';
 
@@ -14,6 +15,7 @@ export class ScraperService {
   constructor(
     private readonly config: ConfigService,
     private readonly listingsService: ListingsService,
+    private readonly rankerService: RankerService,
     private readonly dollarService: DollarService,
     @InjectRepository(ScrapeRun)
     private readonly scrapeRunRepo: Repository<ScrapeRun>,
@@ -129,6 +131,17 @@ export class ScraperService {
       this.logger.log(
         `Scrape complete: ${allListings.length} unique listings, ${newCount} new`,
       );
+
+      // Auto-rank new listings in background
+      if (newCount > 0) {
+        this.logger.log(`Auto-ranking ${newCount} new listings...`);
+        this.rankerService.rankAll().then((result) => {
+          this.logger.log(`Auto-ranking done: ${result.ranked} ranked`);
+        }).catch((err) => {
+          this.logger.warn(`Auto-ranking failed: ${err.message}`);
+        });
+      }
+
       return { total: allListings.length, new: newCount };
     } catch (error) {
       await this.scrapeRunRepo.update(run.id, {

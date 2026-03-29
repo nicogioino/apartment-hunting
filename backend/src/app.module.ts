@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ServeStaticModule } from '@nestjs/serve-static';
 import { ScheduleModule } from '@nestjs/schedule';
+import { join } from 'path';
 import { ListingsModule } from './listings/listings.module';
 import { ScraperModule } from './scraper/scraper.module';
 import { RankerModule } from './ranker/ranker.module';
@@ -23,7 +25,13 @@ import { ScrapeRun } from './scraper/scrape-run.entity';
         database: config.get('DB_NAME', 'apartment_hunting'),
         entities: [Listing, PriceHistory, ScrapeRun],
         synchronize: true,
+        ssl: config.get('DB_SSL') === 'true' ? { rejectUnauthorized: false } : false,
       }),
+    }),
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', '..', 'frontend', 'out'),
+      serveRoot: '/',
+      exclude: ['/listings*', '/scraper*', '/ranker*'],
     }),
     ScheduleModule.forRoot(),
     ListingsModule,
