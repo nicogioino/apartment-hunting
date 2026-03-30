@@ -43,6 +43,7 @@ export class ListingsService {
       'scoreAesthetics',
       'priceUsd',
       'totalAreaM2',
+      'priceChangeUsd',
       'firstSeen',
       'lastSeen',
     ];
@@ -54,6 +55,19 @@ export class ListingsService {
 
   async findOne(id: string) {
     return this.repo.findOneBy({ id });
+  }
+
+  async getStats() {
+    const active = await this.repo.count({ where: { isActive: true } });
+    const closed = await this.repo.count({ where: { isActive: false } });
+
+    // Get the second-to-last completed scrape time — listings newer than this are "new"
+    const runs = await this.repo.manager.query(
+      `SELECT "startedAt" FROM scrape_runs WHERE status = 'completed' ORDER BY id DESC LIMIT 2`,
+    );
+    const newSince = runs.length >= 2 ? runs[1].startedAt : runs[0]?.startedAt;
+
+    return { active, closed, newSince };
   }
 
   async getNeighborhoods(): Promise<string[]> {
@@ -108,6 +122,8 @@ export class ListingsService {
       await this.repo.update(existing.id, {
         ...listing,
         lastSeen: new Date(),
+        missedScrapes: 0,
+        isActive: true,
       });
       return { isNew: false };
     }
@@ -174,12 +190,27 @@ export class ListingsService {
 
   async markInactive(activeIds: string[]) {
     if (activeIds.length === 0) return;
+
+    // Increment missedScrapes for listings not found in this scrape
     await this.repo
       .createQueryBuilder()
       .update()
-      .set({ isActive: false })
+      .set({ missedScrapes: () => '"missedScrapes" + 1' })
       .where('id NOT IN (:...ids)', { ids: activeIds })
       .andWhere('isActive = true')
       .execute();
+
+    // Only mark as closed after missing from 3+ consecutive scrapes
+    const closed = await this.repo
+      .createQueryBuilder()
+      .update()
+      .set({ isActive: false })
+      .where('"missedScrapes" >= 3')
+      .andWhere('isActive = true')
+      .execute();
+
+    if (closed.affected) {
+      this.logger.log(`Closed ${closed.affected} listings (missing 3+ scrapes)`);
+    }
   }
 }

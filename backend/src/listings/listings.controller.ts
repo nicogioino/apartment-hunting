@@ -27,6 +27,11 @@ export class ListingsController {
     return this.listingsService.getNeighborhoods();
   }
 
+  @Get('stats')
+  getStats() {
+    return this.listingsService.getStats();
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.listingsService.findOne(id);
