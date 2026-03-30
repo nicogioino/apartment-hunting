@@ -39,7 +39,9 @@ type SortKey =
   | 'scoreLocation'
   | 'scoreAesthetics'
   | 'priceUsd'
-  | 'totalAreaM2';
+  | 'totalAreaM2'
+  | 'priceChangeUsd'
+  | 'lastSeen';
 
 function scoreColor(n: number) {
   if (n >= 8) return 'text-emerald-400';
@@ -306,10 +308,12 @@ function ListingDetail({ listing }: { listing: Listing }) {
 export default function Home() {
   const [listings, setListings] = useState<Listing[]>([]);
   const [neighborhoods, setNeighborhoods] = useState<string[]>([]);
+  const [newSince, setNewSince] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortKey>('scoreOverall');
   const [sortOrder, setSortOrder] = useState<'DESC' | 'ASC'>('DESC');
   const [filterNeighborhood, setFilterNeighborhood] = useState('');
   const [tab, setTab] = useState<'active' | 'closed'>('active');
+  const [showNewOnly, setShowNewOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -329,9 +333,16 @@ export default function Home() {
     setNeighborhoods(await res.json());
   };
 
+  const fetchStats = async () => {
+    const res = await fetch(`${API}/listings/stats`);
+    const data = await res.json();
+    setNewSince(data.newSince);
+  };
+
   useEffect(() => {
     fetchListings();
     fetchNeighborhoods();
+    fetchStats();
   }, [sortBy, sortOrder, filterNeighborhood, tab]);
 
   const sortOptions: { key: SortKey; label: string }[] = [
@@ -340,7 +351,9 @@ export default function Home() {
     { key: 'scoreLocation', label: 'Location' },
     { key: 'scoreAesthetics', label: 'Aesthetics' },
     { key: 'priceUsd', label: 'Price' },
+    { key: 'priceChangeUsd', label: 'Price Change' },
     { key: 'totalAreaM2', label: 'Size' },
+    ...(tab === 'closed' ? [{ key: 'lastSeen' as SortKey, label: 'Close Date' }] : []),
   ];
 
   const selectClass =
@@ -426,6 +439,18 @@ export default function Home() {
             ))}
           </select>
         </div>
+        {tab === 'active' && (
+          <button
+            onClick={() => setShowNewOnly(!showNewOnly)}
+            className={`h-9 px-3 rounded-lg border text-sm font-medium transition-colors ${
+              showNewOnly
+                ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400'
+                : 'border-border bg-card text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            New only
+          </button>
+        )}
       </div>
 
       {/* Listings */}
@@ -439,9 +464,14 @@ export default function Home() {
         </div>
       ) : (
         <div className="space-y-3">
-          {listings.map((l, idx) => {
+          {listings
+            .filter((l) => {
+              if (!showNewOnly || tab !== 'active') return true;
+              return newSince && new Date(l.firstSeen) > new Date(newSince);
+            })
+            .map((l, idx) => {
             const overall = Number(l.scoreOverall) || 0;
-            const isNew = tab === 'active' && Date.now() - new Date(l.firstSeen).getTime() < 24 * 60 * 60 * 1000;
+            const isNew = tab === 'active' && newSince && new Date(l.firstSeen) > new Date(newSince);
             const isClosed = tab === 'closed';
             return (
               <Card

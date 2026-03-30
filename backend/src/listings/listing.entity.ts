@@ -87,6 +87,9 @@ export class Listing {
   @Column({ type: 'decimal', nullable: true, default: 0 })
   priceChangeUsd: number;
 
+  @Column({ default: 0 })
+  missedScrapes: number;
+
   @Column({ default: true })
   isActive: boolean;
 }

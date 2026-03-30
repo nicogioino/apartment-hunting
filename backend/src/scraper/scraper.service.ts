@@ -38,10 +38,9 @@ export class ScraperService {
     try {
       const allListings: any[] = [];
       const seenIds = new Set<string>();
-      const maxPages = 35;
       let emptyStreak = 0;
 
-      for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+      for (let pageNum = 1; ; pageNum++) {
         const url =
           pageNum === 1
             ? baseUrl
@@ -51,14 +50,6 @@ export class ScraperService {
 
         const listings = await this.scrapeSinglePage(url);
 
-        if (listings.length === 0) {
-          emptyStreak++;
-          this.logger.warn(`Page ${pageNum}: empty (streak: ${emptyStreak})`);
-          if (emptyStreak >= 3) break;
-          continue;
-        }
-
-        emptyStreak = 0;
         let newOnPage = 0;
         for (const l of listings) {
           if (!seenIds.has(l.id)) {
@@ -72,11 +63,20 @@ export class ScraperService {
           `Page ${pageNum}: ${listings.length} found, ${newOnPage} new unique`,
         );
 
-        // Delay between pages
-        if (pageNum < maxPages) {
-          const delay = 4000 + Math.random() * 4000;
-          await new Promise((r) => setTimeout(r, delay));
+        if (listings.length === 0 || newOnPage === 0) {
+          emptyStreak++;
+          if (emptyStreak >= 3) {
+            this.logger.log('3 pages with no new listings, stopping.');
+            break;
+          }
+          continue;
         }
+
+        emptyStreak = 0;
+
+        // Delay between pages
+        const delay = 4000 + Math.random() * 4000;
+        await new Promise((r) => setTimeout(r, delay));
       }
 
       // Fetch fresh blue dollar rate
