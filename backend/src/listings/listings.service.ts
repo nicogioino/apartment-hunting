@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { Listing } from './listing.entity';
 import { PriceHistory } from './price-history.entity';
 
@@ -171,7 +171,7 @@ export class ListingsService {
 
   async getUnranked() {
     return this.repo.find({
-      where: { rankedAt: null as any, isActive: true },
+      where: { rankedAt: IsNull(), isActive: true },
     });
   }
 
