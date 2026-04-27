@@ -99,7 +99,7 @@ ${JSON.stringify(listingSummaries, null, 2)}`;
     const apiKey = this.config.get('OPENROUTER_API_KEY');
     const model = this.config.get(
       'OPENROUTER_MODEL',
-      'meta-llama/llama-3.3-70b-instruct:free',
+      'google/gemini-2.5-flash-lite',
     );
 
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
